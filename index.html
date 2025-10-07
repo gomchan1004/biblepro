@@ -250,6 +250,7 @@ const verses = [
   let filteredVerses = [...verses];
   let currentVerse = null;
   let score = 0;
+  let wrongWordsQueue = []; // 틀린 단어 저장**
 
   // DOM 요소
   const verseDiv = document.getElementById("verse");
@@ -258,12 +259,12 @@ const verses = [
   const correctVerseDiv = document.getElementById("correctVerse");
   const scoreDiv = document.getElementById("score");
 
-  // 구절 길이별 필터링 함수 (40자 기준)
+  // 구절 길이별 필터링 함수 (60자 기준)
   function setVerseLength(length) {
     if (length === "short") {
-      filteredVerses = verses.filter(v => v.text.length <= 40);
+      filteredVerses = verses.filter(v => v.text.length <= 60);
     } else if (length === "long") {
-      filteredVerses = verses.filter(v => v.text.length > 40);
+      filteredVerses = verses.filter(v => v.text.length > 60);
     } else {
       filteredVerses = [...verses];
     }
@@ -278,72 +279,78 @@ const verses = [
   }
 
   // 다음 구절 선택 및 화면 업데이트
-  function nextVerse() {
-    if (filteredVerses.length === 0) {
-      verseDiv.textContent = "해당 길이 조건에 맞는 구절이 없습니다.";
-      userInput.value = "";
-      resultDiv.innerHTML = "";
-      correctVerseDiv.textContent = "";
-      scoreDiv.textContent = "";
-      return;
-    }
+ function nextVerse() {
+  if (wrongVersesQueue.length > 0) {
+    currentVerse = wrongVersesQueue.shift();
+  } else if (filteredVerses.length > 0) {
     currentVerse = filteredVerses[Math.floor(Math.random() * filteredVerses.length)];
-    verseDiv.textContent = `${currentVerse.reference} : ${showPartialVerse(currentVerse.text)}`;
+  } else {
+    verseDiv.textContent = "해당 길이 조건에 맞는 구절이 없습니다.";
     userInput.value = "";
     resultDiv.innerHTML = "";
     correctVerseDiv.textContent = "";
     scoreDiv.textContent = "";
+    return;
+  }
+  verseDiv.textContent = `${currentVerse.reference} : ${showPartialVerse(currentVerse.text)}`;
+  userInput.value = "";
+  resultDiv.innerHTML = "";
+  correctVerseDiv.textContent = "";
+  scoreDiv.textContent = "";
+}
+
+// 단어별 비교 후 색상 표시
+function getFeedbackHTML(correct, input) {
+  const correctWords = correct.trim().split(" ");
+  const inputWords = input.trim().split(" ");
+  return correctWords
+    .map((word, i) => {
+      if(inputWords[i] === word) {
+        return `<span class="green">${word}</span>`;
+      } else {
+        return `<span class="red">${inputWords[i] || "[없음]"}</span>`;
+      }
+    })
+    .join(" ");
+}
+
+// 정답 체크
+function checkAnswer() {
+  if (!currentVerse) return;
+  if (userInput.value.trim() === "") {
+    alert("입력해주세요!");
+    return;
+  }
+  const html = getFeedbackHTML(currentVerse.text, userInput.value);
+  resultDiv.innerHTML = html;
+
+  const correctWords = currentVerse.text.trim().split(" ");
+  const inputWords = userInput.value.trim().split(" ");
+  let correctCount = 0;
+  for (let i = 0; i < correctWords.length; i++) {
+    if (inputWords[i] === correctWords[i]) correctCount++;
+  }
+  score = correctCount;
+  scoreDiv.textContent = `맞은 단어 수: ${score} / ${correctWords.length}`;
+
+  // 틀렸으면 큐에 추가
+  if (score < correctWords.length) {
+    wrongVersesQueue.push(currentVerse);
   }
 
-  // 단어별 비교 후 색깔로 결과 표시
-  function getFeedbackHTML(correct, input) {
-    const correctWords = correct.trim().split(" ");
-    const inputWords = input.trim().split(" ");
-    return correctWords
-      .map((word, i) => {
-        if(inputWords[i] === word) {
-          return `<span class="green">${word}</span>`;
-        } else {
-          return `<span class="red">${inputWords[i] || "[없음]"}</span>`;
-        }
-      })
-      .join(" ");
-  }
+  correctVerseDiv.textContent = `정답 구절: ${currentVerse.text}`;
+}
 
-  // 정답 체크
-  function checkAnswer() {
-    if (!currentVerse) return;
-    if (userInput.value.trim() === "") {
-      alert("입력해주세요!");
-      return;
-    }
-    const html = getFeedbackHTML(currentVerse.text, userInput.value);
-    resultDiv.innerHTML = html;
+// 구절 음성 읽기
+function readVerse() {
+  if (!currentVerse) return;
+  const utterance = new SpeechSynthesisUtterance(currentVerse.text);
+  utterance.lang = "ko-KR";
+  window.speechSynthesis.speak(utterance);
+}
 
-    // 점수 업데이트 (맞은 단어 개수)
-    const correctWords = currentVerse.text.trim().split(" ");
-    const inputWords = userInput.value.trim().split(" ");
-    let correctCount = 0;
-    for (let i = 0; i < correctWords.length; i++) {
-      if (inputWords[i] === correctWords[i]) correctCount++;
-    }
-    score = correctCount;
-    scoreDiv.textContent = `맞은 단어 수: ${score} / ${correctWords.length}`;
-
-    // 전체 정답 구절 출력
-    correctVerseDiv.textContent = `정답 구절: ${currentVerse.text}`;
-  }
-
-  // 구절 음성 읽기 (SpeechSynthesis API)
-  function readVerse() {
-    if (!currentVerse) return;
-    const utterance = new SpeechSynthesisUtterance(currentVerse.text);
-    utterance.lang = "ko-KR";
-    window.speechSynthesis.speak(utterance);
-  }
-
-  // 초기 구절 로딩
-  setVerseLength("all");
+// 초기 구절 로딩
+setVerseLength("all");
 </script>
 
 </body>
