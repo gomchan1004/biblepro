@@ -96,10 +96,11 @@ const verses = [
 ];
 
 // ======== 상태 ========
-let filteredVerses = [...verses];
 let currentVerse = null;
 let score = 0;
 let wrongVersesQueue = [];
+let filteredVerses = [...verses];
+let isSpeaking = false; // 음성 재생 상태
 
 const verseDiv = document.getElementById("verse");
 const userInput = document.getElementById("userInput");
@@ -107,7 +108,7 @@ const resultDiv = document.getElementById("result");
 const correctVerseDiv = document.getElementById("correctVerse");
 const scoreDiv = document.getElementById("score");
 
-// 구절 길이 필터
+// ======== 구절 길이 필터 ========
 function setVerseLength(length) {
   if(length==="short") filteredVerses = verses.filter(v=>v.text.length<=60);
   else if(length==="long") filteredVerses = verses.filter(v=>v.text.length>60);
@@ -115,7 +116,7 @@ function setVerseLength(length) {
   nextVerse();
 }
 
-// 다음 구절
+// ======== 다음 구절 ========
 function nextVerse(){
   userInput.value="";
   resultDiv.innerHTML="";
@@ -123,16 +124,18 @@ function nextVerse(){
   if(wrongVersesQueue.length>0) currentVerse = wrongVersesQueue.shift();
   else currentVerse = filteredVerses[Math.floor(Math.random()*filteredVerses.length)];
   if(currentVerse) verseDiv.textContent = showPartialVerse(currentVerse.text)+" ("+currentVerse.reference+")";
+  isSpeaking = false; // 음성 상태 초기화
 }
 
-// 구절 일부만 보여주기
+// ======== 구절 일부만 보여주기 ========
 function showPartialVerse(text){
   const words = text.trim().split(" ");
-  if(words.length<=2) return text;
-  return `${words[0]} … ${words[words.length-1]}`;
+  if(words.length <= 3) return text;
+  const middle = words.slice(1, -1).map(w => "…").join(" ");
+  return `${words[0]} ${middle} ${words[words.length-1]}`;
 }
 
-// 정답 확인
+// ======== 정답 확인 ========
 function checkAnswer(){
   if(!currentVerse) return;
   const input = userInput.value.trim();
@@ -142,24 +145,36 @@ function checkAnswer(){
   } else {
     resultDiv.innerHTML="<span class='red'>틀렸습니다.</span>";
     correctVerseDiv.textContent = "정답: " + currentVerse.text;
-    wrongVersesQueue.push(currentVerse); // 다시 큐에 넣기
+    wrongVersesQueue.push(currentVerse);
   }
   scoreDiv.textContent = `점수: ${score}`;
 }
 
-// 음성 읽기
+// ======== 음성 읽기 (토글형) ========
 function readVerse(){
   if(!currentVerse) return;
-  const utter = new SpeechSynthesisUtterance(currentVerse.text);
-  utter.lang = "ko-KR";
-  speechSynthesis.speak(utter);
+
+  if(isSpeaking) {
+    // 재생 중이면 중단
+    speechSynthesis.cancel();
+    isSpeaking = false;
+  } else {
+    // 새로 재생
+    const utter = new SpeechSynthesisUtterance(currentVerse.text);
+    utter.lang = "ko-KR";
+    utter.onend = () => { isSpeaking = false; };
+    speechSynthesis.speak(utter);
+    isSpeaking = true;
+  }
 }
 
-// 초기
+// ======== 초기 실행 ========
 nextVerse();
 </script>
 
 </body>
 </html>
+
+
 
 
