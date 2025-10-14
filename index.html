@@ -35,13 +35,14 @@
 <div>
   <button onclick="checkAnswer()">정답 확인</button>
   <button onclick="nextVerse()">다음 구절</button>
+  <button onclick="repeatVerse()">같은 구절 반복</button>
   <button onclick="readVerse()">음성 읽기</button>
 </div>
 
 <div id="result"></div>
 <div id="correctVerse"></div>
 <div id="score"></div>
-
+  
 <script>
 const verses = [
   {"text":"하나님이 이르시되 우리의 형상을 따라 우리의 모양대로 우리가 사람을 만들고 그들로 바다의 물고기와 하늘의 새와 가축과 온 땅과 땅에 기는 모든 것을 다스리게 하자 하시고","reference":"창세기 1장 26절"},
@@ -141,6 +142,14 @@ function nextVerse(){
   verseDiv.innerText = showPartialVerse(currentVerse.text) + "\n(" + currentVerse.reference + ")";
 }
 
+// ======== 반복 연습 기능 ========
+function repeatVerse(){
+  userInput.value="";
+  resultDiv.innerHTML="";
+  correctVerseDiv.innerHTML="";
+  verseDiv.innerText = showPartialVerse(currentVerse.text) + "\n(" + currentVerse.reference + ")";
+}
+
 // ======== 구절 일부만 보여주기 ========
 function showPartialVerse(text){
   const words = text.trim().split(/\s+/);
@@ -186,5 +195,3 @@ nextVerse();
 
 </body>
 </html>
-
-
