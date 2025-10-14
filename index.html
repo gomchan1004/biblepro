@@ -1,32 +1,29 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-<meta charset="UTF-8">
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>성경 암송 연습</title>
 <style>
-  body { font-family: Arial, sans-serif; margin: 30px; line-height: 1.6; }
-  textarea { width: 100%; height: 100px; font-size: 16px; }
-  button { margin: 5px; padding: 10px 20px; font-size: 16px; border-radius: 8px; }
-  .green { color: green; font-weight: bold; }
-  .red { color: red; font-weight: bold; }
-  #verse, #result, #correctVerse, #score { margin-top: 15px; }
+  body { font-family: Arial, sans-serif; max-width: 600px; margin: 30px auto; padding: 20px; line-height: 1.6; background: #f7f7f7; border-radius: 10px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+  h1 { text-align: center; }
+  #verse { font-size: 18px; background: #fff; padding: 15px; border-radius: 10px; margin-bottom: 15px; }
+  textarea { width: 100%; height: 100px; font-size: 16px; padding: 10px; border-radius: 8px; border: 1px solid #ccc; }
+  button { margin: 8px; padding: 10px 18px; border: none; border-radius: 8px; background: #4a90e2; color: white; cursor: pointer; font-size: 15px; }
+  button:hover { background: #357ABD; }
+  #result { margin-top: 15px; font-size: 17px; }
+  .correct { color: green; font-weight: bold; }
+  .wrong { color: red; font-weight: bold; }
 </style>
 </head>
 <body>
-
-<h2>📖 성경 암송 연습 프로그램</h2>
-
-<div id="verse"></div>
-<textarea id="userInput" placeholder="암송 내용을 입력하세요..."></textarea><br>
-<button onclick="checkAnswer()">정답 확인</button>
-<button onclick="nextVerse()">다음 문제</button>
-<button onclick="readVerse()">음성 듣기</button>
-<button onclick="toggleMode()">순차/랜덤 전환</button>
-<button onclick="repeatVerse()">같은 구절 반복</button>
-
-<div id="result"></div>
-<div id="correctVerse"></div>
-<div id="score">점수: 0</div>
+  <h1>성경 암송 연습</h1>
+  <div id="verse"></div>
+  <textarea id="userInput" placeholder="여기에 입력하세요..."></textarea><br/>
+  <button onclick="checkAnswer()">정답 확인</button>
+  <button onclick="nextVerse()">다음 구절</button>
+  <button onclick="repeatVerse()">다시 연습하기</button>
+  <div id="result"></div>
   
 <script>
 const verses = [
@@ -83,92 +80,45 @@ const verses = [
 ];
 
 let currentIndex = 0;
-let currentVerse = null;
-let randomMode = false;
-let wrongVersesQueue = [];
-let score = 0;
-let isSpeaking = false;
+let verseElem = document.getElementById("verse");
+let resultElem = document.getElementById("result");
+let inputElem = document.getElementById("userInput");
 
-// ======== 다음 문제 ========
-function nextVerse(){
-  const filtered = wrongVersesQueue.length > 0 ? wrongVersesQueue : verses;
-  if(randomMode){
-    currentVerse = filtered[Math.floor(Math.random() * filtered.length)];
+function normalizeText(text) {
+  return text.replace(/[,\s;]+/g, "").trim();
+}
+
+function displayVerse() {
+  verseElem.innerHTML = `<b>${verses[currentIndex].reference}</b><br>${verses[currentIndex].text}`;
+  resultElem.innerHTML = "";
+  inputElem.value = "";
+}
+
+function checkAnswer() {
+  const userInput = normalizeText(inputElem.value);
+  const correct = normalizeText(verses[currentIndex].text);
+
+  if (userInput === correct) {
+    resultElem.innerHTML = "<span class='correct'>정답입니다! 👍</span>";
   } else {
-    currentVerse = filtered[currentIndex % filtered.length];
-    currentIndex++;
+    resultElem.innerHTML = `<span class='wrong'>틀렸습니다 😢</span><br>
+    <b>정답:</b> ${verses[currentIndex].text}`;
   }
-  verseDiv.innerText = showPartialVerse(currentVerse.text) + "\n(" + currentVerse.reference + ")";
-  userInput.value = "";
-  resultDiv.innerHTML = "";
-  correctVerseDiv.innerHTML = "";
 }
 
-// ======== 반복 연습 기능 ========
-function repeatVerse(){
-  userInput.value="";
-  resultDiv.innerHTML="";
-  correctVerseDiv.innerHTML="";
-  verseDiv.innerText = showPartialVerse(currentVerse.text) + "\n(" + currentVerse.reference + ")";
+function nextVerse() {
+  currentIndex = (currentIndex + 1) % verses.length;
+  displayVerse();
 }
 
-// ======== 예시 (첫 단어 + 마지막 단어, 중간은 단어 수만큼 … ) ========
-function showPartialVerse(text){
-  const words = text.trim().split(/\s+/);
-  if(words.length <= 2) return text;
-  const middle = words.slice(1, -1).map(() => "…").join(" ");
-  return `${words[0]} ${middle} ${words[words.length-1]}`;
+function repeatVerse() {
+  // 같은 구절 다시 표시 (입력창 초기화)
+  inputElem.value = "";
+  resultElem.innerHTML = "";
+  displayVerse();
 }
 
-// ======== 정답 체크 ========
-function checkAnswer(){
-  // 쉼표, 세미콜론, 공백 모두 무시
-  const normalize = str => str.replace(/[\s,;]+/g, "");
-  
-  const input = normalize(userInput.value);
-  const answer = normalize(currentVerse.text);
-  
-  let html="";
-  if(input === answer){
-    html="<span class='green'>정답!</span>";
-    score++;
-  } else {
-    html="<span class='red'>오답!</span>";
-    wrongVersesQueue.push(currentVerse);
-  }
-  resultDiv.innerHTML=html;
-  correctVerseDiv.innerText = currentVerse.text;
-  scoreDiv.innerText = "점수: "+score;
-}
-
-// ======== 음성 읽기 ========
-function readVerse(){
-  if(isSpeaking){
-    speechSynthesis.cancel();
-    isSpeaking=false;
-    return;
-  }
-  const utter = new SpeechSynthesisUtterance(currentVerse.text);
-  utter.lang="ko-KR";
-  utter.onend = ()=>{ isSpeaking=false; };
-  isSpeaking=true;
-  speechSynthesis.speak(utter);
-}
-
-// ======== 모드 전환 (순차/랜덤) ========
-function toggleMode(){
-  randomMode = !randomMode;
-  alert(randomMode ? "랜덤 모드로 전환되었습니다." : "순차 모드로 전환되었습니다.");
-}
-
-// ======== 초기화 ========
-const verseDiv=document.getElementById("verse");
-const userInput=document.getElementById("userInput");
-const resultDiv=document.getElementById("result");
-const correctVerseDiv=document.getElementById("correctVerse");
-const scoreDiv=document.getElementById("score");
-
-nextVerse();
+displayVerse();
 </script>
 </body>
 </html>
