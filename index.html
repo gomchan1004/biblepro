@@ -32,14 +32,14 @@
 <textarea id="userInput" placeholder="여기에 암송한 구절을 입력하세요"></textarea>
 
 <div>
-  <button onclick="checkAnswer()">정답 확인</button>
-  <button onclick="nextVerse()">다음 구절</button>
-  <button onclick="readVerse()">음성 읽기</button>
+  <button id="checkBtn" onclick="checkAnswer()">정답 확인</button>
+  <button id="nextBtn" onclick="nextVerse()">다음 구절</button>
+  <button id="readBtn" onclick="readVerse()">음성 읽기</button>
 </div>
 
 <div id="result"></div>
 <div id="correctVerse"></div>
-<div id="score"></div>
+<div id="score">점수: 0</div>
   
 <script>
 const verses = [
@@ -107,47 +107,114 @@ const userInput = document.getElementById("userInput");
 const resultDiv = document.getElementById("result");
 const correctVerseDiv = document.getElementById("correctVerse");
 const scoreDiv = document.getElementById("score");
+const checkBtn = document.getElementById("checkBtn");
+const nextBtn = document.getElementById("nextBtn");
+const readBtn = document.getElementById("readBtn");
 
 // ======== 구절 길이 필터 ========
 function setVerseLength(length) {
   if(length==="short") filteredVerses = verses.filter(v=>v.text.length<=60);
   else if(length==="long") filteredVerses = verses.filter(v=>v.text.length>60);
   else filteredVerses = [...verses];
+  // 순차 인덱스 초기화
+  nextVerse.index = 0;
+  // 초기화된 상태에서 바로 첫 문제 표시
   nextVerse();
 }
 
-// ======== 다음 구절 ========
+// ======== 다음 구절 (순차적: 사용자 데이터 배열 순서 유지) ========
 function nextVerse(){
   userInput.value="";
   resultDiv.innerHTML="";
   correctVerseDiv.innerHTML="";
-  if(wrongVersesQueue.length>0) currentVerse = wrongVersesQueue.shift();
-  else currentVerse = filteredVerses[Math.floor(Math.random()*filteredVerses.length)];
-  if(currentVerse) verseDiv.textContent = showPartialVerse(currentVerse.text)+" ("+currentVerse.reference+")";
+
+  // 먼저 오답 큐에 남은 문제를 재출제
+  if(wrongVersesQueue.length>0) {
+    currentVerse = wrongVersesQueue.shift();
+  } else {
+    if (typeof nextVerse.index === "undefined") nextVerse.index = 0;
+    // 순차적으로 진행, 끝에 도달하면 완료 메시지 표시하고 버튼 비활성화
+    if (nextVerse.index >= filteredVerses.length) {
+      verseDiv.textContent = "🎉 모든 구절을 완료했습니다!";
+      currentVerse = null;
+      checkBtn.disabled = true;
+      nextBtn.disabled = true;
+      readBtn.disabled = true;
+      return;
+    }
+    currentVerse = filteredVerses[nextVerse.index];
+    nextVerse.index++;
+  }
+
+  if(currentVerse) verseDiv.textContent = showPartialVerse(currentVerse.text) + " (" + currentVerse.reference + ")";
   isSpeaking = false; // 음성 상태 초기화
+  // 상태 표시
+  const idx = Math.min(nextVerse.index, filteredVerses.length);
+  resultDiv.textContent = `${idx}/${filteredVerses.length} 문제 중`;
 }
 
 // ======== 구절 일부만 보여주기 ========
 function showPartialVerse(text){
+  // 원본 로직 유지: 공백 기준 단어 분리
   const words = text.trim().split(" ");
   if(words.length <= 3) return text;
-  const middle = words.slice(1, -1).map(w => "…").join(" ");
+  const middle = words.slice(1, -1).map(() => "…").join(" ");
   return `${words[0]} ${middle} ${words[words.length-1]}`;
+}
+
+// ======== 문자열 정규화: 띄어쓰기 및 구두점 무시 ========
+function normalizeText(t) {
+  if (!t) return "";
+  return t
+    .replace(/\s+/g, "")                     // 모든 공백 제거
+    .replace(/[.,!?;:·•"“”‘’'()\[\]{}—–…]/g, "") // 일반적 구두점 제거
+    .normalize("NFC")                        // 유니코드 정규화 (한글 안정화)
+    .toLowerCase();                          // 소문자화 (영문 대비)
 }
 
 // ======== 정답 확인 ========
 function checkAnswer(){
   if(!currentVerse) return;
   const input = userInput.value.trim();
-  if(input===currentVerse.text){
-    resultDiv.innerHTML="<span class='green'>정답!</span>";
+  const normalizedInput = normalizeText(input);
+  const normalizedAnswer = normalizeText(currentVerse.text);
+
+  if(normalizedInput === normalizedAnswer){
+    resultDiv.innerHTML = "<span class='green'>정답!</span>";
     score++;
+    scoreDiv.textContent = `점수: ${score}`;
   } else {
-    resultDiv.innerHTML="<span class='red'>틀렸습니다.</span>";
-    correctVerseDiv.textContent = "정답: " + currentVerse.text;
-    wrongVersesQueue.push(currentVerse);
+    // 유사도 계산: 간단한 Levenshtein 기반 비율 (오차를 허용)
+    const similarity = calcSimilarity(normalizedInput, normalizedAnswer);
+    if (similarity >= 0.92 && normalizedInput.length > 0) {
+      // 매우 근접한 경우에도 정답으로 처리 (띄어쓰기·구두점 정도 차이)
+      resultDiv.innerHTML = "<span class='green'>정답! (거의 일치)</span>";
+      score++;
+      scoreDiv.textContent = `점수: ${score}`;
+    } else {
+      resultDiv.innerHTML = "<span class='red'>틀렸습니다.</span>";
+      correctVerseDiv.textContent = "정답: " + currentVerse.text;
+      wrongVersesQueue.push(currentVerse);
+    }
   }
-  scoreDiv.textContent = `점수: ${score}`;
+}
+
+// ======== 유사도 계산: Levenshtein distance => 0..1 유사도 반환 ========
+function calcSimilarity(a, b) {
+  if (a === b) return 1;
+  if (a.length === 0 || b.length === 0) return 0;
+  const dp = Array.from({length: a.length+1}, () => new Array(b.length+1).fill(0));
+  for (let i=0; i<=a.length; i++) dp[i][0] = i;
+  for (let j=0; j<=b.length; j++) dp[0][j] = j;
+  for (let i=1; i<=a.length; i++){
+    for (let j=1; j<=b.length; j++){
+      const cost = a[i-1] === b[j-1] ? 0 : 1;
+      dp[i][j] = Math.min(dp[i-1][j] + 1, dp[i][j-1] + 1, dp[i-1][j-1] + cost);
+    }
+  }
+  const distance = dp[a.length][b.length];
+  const maxLen = Math.max(a.length, b.length);
+  return 1 - distance / maxLen;
 }
 
 // ======== 음성 읽기 (토글형) ========
@@ -155,11 +222,9 @@ function readVerse(){
   if(!currentVerse) return;
 
   if(isSpeaking) {
-    // 재생 중이면 중단
     speechSynthesis.cancel();
     isSpeaking = false;
   } else {
-    // 새로 재생
     const utter = new SpeechSynthesisUtterance(currentVerse.text);
     utter.lang = "ko-KR";
     utter.onend = () => { isSpeaking = false; };
@@ -174,7 +239,3 @@ nextVerse();
 
 </body>
 </html>
-
-
-
-
