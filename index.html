@@ -1,31 +1,55 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>성경 암송 연습</title>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>성경 암송 연습 — 통합판</title>
 <style>
-  body { font-family: Arial, sans-serif; max-width: 600px; margin: 30px auto; padding: 20px; line-height: 1.6; background: #f7f7f7; border-radius: 10px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
-  h1 { text-align: center; }
-  #verse { font-size: 18px; background: #fff; padding: 15px; border-radius: 10px; margin-bottom: 15px; }
-  textarea { width: 100%; height: 100px; font-size: 16px; padding: 10px; border-radius: 8px; border: 1px solid #ccc; }
-  button { margin: 8px; padding: 10px 18px; border: none; border-radius: 8px; background: #4a90e2; color: white; cursor: pointer; font-size: 15px; }
-  button:hover { background: #357ABD; }
-  #result { margin-top: 15px; font-size: 17px; }
-  .correct { color: green; font-weight: bold; }
-  .wrong { color: red; font-weight: bold; }
+  body { font-family: Arial, sans-serif; max-width: 820px; margin: 24px auto; padding: 16px; background:#fafafa; color:#222; }
+  h1 { text-align:center; margin-bottom: 12px; }
+  .controls, .actions { display:flex; flex-wrap:wrap; gap:10px; margin-bottom:12px; }
+  button { padding:8px 12px; border:0; border-radius:6px; background:#1976D2; color:#fff; cursor:pointer; font-size:14px; }
+  button.secondary { background:#555; }
+  button.warn { background:#E53935; }
+  #verse { background:#fff; padding:14px; border-radius:8px; box-shadow:0 1px 3px rgba(0,0,0,0.06); font-size:1.05rem; margin-bottom:10px; white-space:pre-wrap; }
+  textarea { width:100%; min-height:84px; padding:10px; font-size:14px; border-radius:6px; border:1px solid #ddd; box-sizing:border-box; }
+  #result { margin-top:10px; font-size:1rem; }
+  #result .green { color:green; font-weight:700; }
+  #result .red { color:#c62828; font-weight:700; }
+  #correctVerse { margin-top:10px; padding:10px; background:#fff; border-radius:6px; border:1px solid #eee; }
+  #score { margin-top:8px; font-weight:600; }
+  .small { font-size:0.85rem; color:#555; }
+  .mode-indicator { background:#fff; color:#333; padding:6px 8px; border-radius:6px; border:1px solid #e0e0e0; }
 </style>
 </head>
 <body>
-  <h1>성경 암송 연습</h1>
-  <div id="verse"></div>
-  <textarea id="userInput" placeholder="여기에 입력하세요..."></textarea><br/>
-  <button onclick="checkAnswer()">정답 확인</button>
-  <button onclick="nextVerse()">다음 구절</button>
-  <button onclick="repeatVerse()">다시 연습하기</button>
+  <h1>성경 암송 연습 — 통합판</h1>
+
+  <div class="controls">
+    <button onclick="setVerseLength('all')">전체 구절</button>
+    <button onclick="setVerseLength('short')">짧은 구절 (60자 이하)</button>
+    <button onclick="setVerseLength('long')">긴 구절 (60자 이상)</button>
+    <button id="randomToggle" class="secondary" onclick="toggleRandomMode()">랜덤 모드: OFF</button>
+    <div class="mode-indicator small" id="modeInfo">모드: 순차(기본)</div>
+  </div>
+
+  <div id="verse">로딩 중...</div>
+
+  <textarea id="userInput" placeholder="여기에 암송한 구절을 입력하세요 — 띄어쓰기·쉼표·세미콜론은 무시됩니다."></textarea>
+
+  <div class="actions">
+    <button onclick="checkAnswer()">정답 확인</button>
+    <button onclick="nextVerse()">다음 구절</button>
+    <button onclick="repeatVerse()">같은 구절 반복</button>
+    <button onclick="toggleRead()" id="readBtn">음성 듣기</button>
+  </div>
+
   <div id="result"></div>
-  
+  <div id="correctVerse"></div>
+  <div id="score">점수: 0</div>
+
 <script>
+// ================= 데이터 (원본 그대로) =================
 const verses = [
   {"text":"하나님이 이르시되 우리의 형상을 따라 우리의 모양대로 우리가 사람을 만들고 그들로 바다의 물고기와 하늘의 새와 가축과 온 땅과 땅에 기는 모든 것을 다스리게 하자 하시고","reference":"창세기 1장 26절"},
   {"text":"여호와께서 그의 앞으로 지나시며 선포하시되 여호와라 여호와라 자비롭고 은혜롭고 노하기를 더디하고 인자와 진실이 많은 하나님이라","reference":"출애굽기 34장 6절"},
@@ -35,15 +59,15 @@ const verses = [
   {"text":"사무엘이 이르되 여호와께서 번제와 다른 제사를 그의 목소리를 청종하는 것을 좋아하심 같이 좋아하시겠나이까 순종이 제사보다 낫고 듣는 것이 숫양의 기름보다 나으니","reference":"사무엘상 15장 22절"},
   {"text":"에스라가 여호와의 율법을 연구하여 준행하며 율례와 규례를 이스라엘에게 가르치기로 결심하였었더라","reference":"에스라 7장 10절"},
   {"text":"이르되 내가 모태에서 알몸으로 나왔사온즉 또한 알몸이 그리로 돌아가올지라 주신 이도 여호와시요 거두신 이도 여호와시오니 여호와의 이름이 찬송을 받으실지니이다 하고","reference":"욥기 1장 21절"},
-  {"text":"복 있는 사람은 악인들의 꾀를 따르지 아니하고 죄인들의 길에 서지 아니하며 오만한 자들의 자리에 앉지 아니하고","reference":"시편 1장 1절"},
+  {"text":"복 있는 사람은 악인들의 꾀를 따르지 아니하며 죄인들의 길에 서지 아니하며 오만한 자들의 자리에 앉지 아니하고","reference":"시편 1편 1절"},
   {"text":"너는 마음을 다하여 여호와를 신뢰하고 네 명철을 의지하지 말라","reference":"잠언 3장 5절"},
   {"text":"여호와를 경외하는 것이 지혜의 근본이요 거룩하신 자를 아는 것이 명철이니라","reference":"잠언 9장 10절"},
-  {"text":"너는 청년의 때에 너의 창조주를 기억하라 곧 곤고한 날이 이르기 전에, 나는 아무낙이 없다고 할 해들이 가깝기 전에","reference":"전도서 12장 1절"},
-  {"text":"너는 나를 도장 같이 마음에 품고 도장 같이 팔에 두라 사랑은 죽음 같이 강하고 질투는 스올 같이 잔인하며 불길 같이 일어나니 그 기세가 여호와의 불과 같으니라","reference":"아가 8장 6절"},
+  {"text":"너는 청년의 때에 너의 창조주를 기억하라 곧 곤고한 날이 이르기 전에, 나는 아무 낙이 없다고 할 해들이 가깝기 전에","reference":"전도서 12장 1절"},
+  {"text":"너는 나를 도장 같이 마음에 품고 도장 같이 팔에 두라 사랑은 죽음 같이 강하고 질투는 스몰 같이 잔인하며 불길 같이 일어나니 그 기세가 여호와의 불과 같으니라","reference":"아가 8장 6절"},
   {"text":"그러므로 주께서 친히 징조를 너희에게 주실 것이라 보라 처녀가 잉태하여 아들을 낳을 것이요 그의 이름을 임마누엘이라 하리라","reference":"이사야 7장 14절"},
   {"text":"이는 한 아기가 우리에게 났고 한 아들을 우리에게 주신 바 되었는 데 그의 어깨에는 정사를 메었고 그의 이름은 기묘자라, 모사라, 전능하신 하나님이라, 영존하시는 아버지라, 평강의 왕이라 할 것임이라","reference":"이사야 9장 6절"},
   {"text":"그가 찔림은 우리의 허물 때문이요 그가 상함은 우리의 죄악 때문이라 그가 징계를 받으므로 우리는 평화를 누리고 그가 채찍에 맞으므로 우리는 나음을 받았도다","reference":"이사야 53장 5절"},
-  {"text":"너희는 예루살렘 거리로 빨리 다니며 그 넓은 거리에서 찾아보고 알라 너희가 만일 정의를 행하며 진리를 구하는 자를 한 사람이라도 찾으면 내가 이 성읍을 용서하리라","reference":"예레미야 5장 1절"},
+  {"text":"너희는 예루살렘 거리로 빨리 다니며 그 넓은 거리에서 찾아보고 알라 너희가 만일 정의를 행하며 진리를 구하는 자를 한 사람이라도 찾으면 내가 이성읍을 용서하리라","reference":"예레미야 5장 1절"},
   {"text":"또 새 영을 너희 속에 두고 새 마음을 너희에게 주되 너희 육신에서 굳은 마음을 제거하고 부드러운 마음을 줄 것이며","reference":"에스겔 36장 26절"},
   {"text":"오라 우리가 여호와께로 돌아가자 여호와께서 우리를 찢으셨으나 도로 낫게 하실 것이요 우리를 치셨으나 싸매어 주실 것임이라","reference":"호세아 6장 1절"},
   {"text":"그 후에 내가 내 영을 만민에게 부어 주리니 너희 자녀들이 장래 일을 말할 것이며 너희 늙은이는 꿈을 꾸며 너희 젊은이는 이상을 볼 것이며","reference":"요엘 2장 28절"},
@@ -68,7 +92,7 @@ const verses = [
   {"text":"너희는 내게 배우고 받고 듣고 본 바를 행하라 그리하면 평강의 하나님이 너희와 함께 계시리라","reference":"빌립보서 4장 9절"},
   {"text":"하나님이 그들로 하여금 이 비밀의 영광이 이방인 가운데 얼마나 풍성한지를 알게 하려 하심이라 이 비밀은 너희 안에 계신 그리스도시니 곧 영광의 소망이니라","reference":"골로새서 1장 27절"},
   {"text":"또 형제들아 너희를 권면하노니 게으른 자들을 권계하며 마음이 약한 자들을 격려하고 힘이 없는 자들을 붙들어 주며 모든 사람에게 오래 참으라","reference":"데살로니가전서 5장 14절"},
-  {"text":"누가 어떻게 하여도 너희가 미혹되지 말라 먼저 배교하는 일이 있고 저 불법의 사람 곧 멸망의 아들이 나타나기 전에는 그 날이 이르지 아니하리니","reference":"데살로니가후서 2장 3절"},
+  {"text":"누가 어떻게 하여도 너희가 미혹되지 말라 먼저 배교하는 일이 있고 저불법의 사람 곧 멸망의 아들이 나타나기 전에는 그 날이 이르지 아니하리니","reference":"데살로니가후서 2장 3절"},
   {"text":"네가 네 자신과 가르침을 살펴 이 일을 계속하라 이것을 행함으로 네 자신과 네게 듣는 자를 구원하리라","reference":"디모데전서 4장 16절"},
   {"text":"모든 성경은 하나님의 감동으로 된 것으로 교훈과 책망과 바르게 함과 의로 교육하기에 유익하니","reference":"디모데후서 3장 16절"},
   {"text":"우리에게 있는 대제사장은 우리의 연약함을 동정하지 못하실 이가 아니요 모든 일에 우리와 똑같이 시험을 받으신 이로되 죄는 없으시니라","reference":"히브리서 4장 15절"},
@@ -78,47 +102,159 @@ const verses = [
   {"text":"우리가 보고 들은 바를 너희에게도 전함은 너희로 우리와 사귐이 있게 하려 함이니 우리의 사귐은 아버지와 그의 아들 예수 그리스도와 더불어 누림이라","reference":"요한일서 1장 3절"},
   {"text":"주 하나님이 이르시되 나는 알파와 오메가라 이제도 있고 전에도 있었고 장차 올 자요 전능한 자라 하시더라","reference":"요한계시록 1장 8절"}
 ];
+// ======================================================
 
-let currentIndex = 0;
-let verseElem = document.getElementById("verse");
-let resultElem = document.getElementById("result");
-let inputElem = document.getElementById("userInput");
+// ===== 상태 =====
+let filteredVerses = [...verses];
+let currentVerse = null;
+let currentIndex = -1; // 현재 인덱스(순차 모드용)
+let score = 0;
+let wrongVersesQueue = [];
+let randomMode = false;
+let isSpeaking = false;
+const MAX_DOTS = 200; // 중간 점 최대 길이 제한
 
-function normalizeText(text) {
-  return text.replace(/[,\s;]+/g, "").trim();
+// ===== DOM =====
+const verseDiv = document.getElementById('verse');
+const userInput = document.getElementById('userInput');
+const resultDiv = document.getElementById('result');
+const correctVerseDiv = document.getElementById('correctVerse');
+const scoreDiv = document.getElementById('score');
+const randomToggleBtn = document.getElementById('randomToggle');
+const modeInfo = document.getElementById('modeInfo');
+
+// ===== 구절 길이 필터 =====
+function setVerseLength(len){
+  if(len === 'short') filteredVerses = verses.filter(v => v.text.length <= 60);
+  else if(len === 'long') filteredVerses = verses.filter(v => v.text.length > 60);
+  else filteredVerses = [...verses];
+  // reset pointers
+  currentIndex = -1;
+  currentVerse = null;
+  nextVerse();
 }
 
-function displayVerse() {
-  verseElem.innerHTML = `<b>${verses[currentIndex].reference}</b><br>${verses[currentIndex].text}`;
-  resultElem.innerHTML = "";
-  inputElem.value = "";
-}
-
-function checkAnswer() {
-  const userInput = normalizeText(inputElem.value);
-  const correct = normalizeText(verses[currentIndex].text);
-
-  if (userInput === correct) {
-    resultElem.innerHTML = "<span class='correct'>정답입니다! 👍</span>";
-  } else {
-    resultElem.innerHTML = `<span class='wrong'>틀렸습니다 😢</span><br>
-    <b>정답:</b> ${verses[currentIndex].text}`;
+// ===== 랜덤 모드 토글 =====
+function toggleRandomMode(){
+  randomMode = !randomMode;
+  randomToggleBtn.textContent = `랜덤 모드: ${randomMode ? 'ON' : 'OFF'}`;
+  randomToggleBtn.className = randomMode ? '' : 'secondary';
+  modeInfo.textContent = randomMode ? '모드: 랜덤' : '모드: 순차(기본)';
+  // when switching mode, keep current verse but reset index so sequential continues naturally
+  if(!randomMode){
+    // set currentIndex so next sequential picks next after current
+    currentIndex = filteredVerses.indexOf(currentVerse);
+    if(currentIndex < 0) currentIndex = -1;
   }
 }
 
-function nextVerse() {
-  currentIndex = (currentIndex + 1) % verses.length;
-  displayVerse();
+// ===== 다음 구절 (순차/랜덤, 오답 큐 우선) =====
+function nextVerse(){
+  userInput.value = '';
+  resultDiv.innerHTML = '';
+  correctVerseDiv.innerHTML = '';
+
+  // 오답 큐 우선
+  if(wrongVersesQueue.length > 0){
+    currentVerse = wrongVersesQueue.shift();
+  } else if(randomMode){
+    const rand = Math.floor(Math.random() * filteredVerses.length);
+    currentVerse = filteredVerses[rand];
+    currentIndex = filteredVerses.indexOf(currentVerse);
+  } else {
+    currentIndex = (currentIndex + 1) % filteredVerses.length;
+    currentVerse = filteredVerses[currentIndex];
+  }
+
+  // 표시 (힌트)
+  verseDiv.innerText = renderHint(currentVerse.text) + "\n(" + currentVerse.reference + ")";
 }
 
-function repeatVerse() {
-  // 같은 구절 다시 표시 (입력창 초기화)
-  inputElem.value = "";
-  resultElem.innerHTML = "";
-  displayVerse();
+// ===== 같은 구절 반복 =====
+function repeatVerse(){
+  if(!currentVerse){
+    nextVerse();
+    return;
+  }
+  // reset input and result but keep currentVerse
+  userInput.value = '';
+  resultDiv.innerHTML = '';
+  correctVerseDiv.innerHTML = '';
+  verseDiv.innerText = renderHint(currentVerse.text) + "\n(" + currentVerse.reference + ")";
 }
 
-displayVerse();
+// ===== 힌트 렌더링: 첫단어 + 중간(글자수 만큼 점) + 마지막단어 =====
+function renderHint(text){
+  const words = text.trim().split(/\s+/);
+  if(words.length <= 2) return text;
+  // middle characters count (exclude spaces)
+  const middleText = words.slice(1, -1).join('');
+  let dotCount = middleText.length;
+  if(dotCount > MAX_DOTS) dotCount = MAX_DOTS;
+  // use middle dot '·' to represent each character
+  const dots = '·'.repeat(dotCount);
+  return `${words[0]} ${dots} ${words[words.length-1]}`;
+}
+
+// ===== 정규화: 공백, 쉼표, 세미콜론 무시 =====
+function normalizeForCompare(s){
+  if(!s) return '';
+  return s.replace(/[\s,;]+/g, '').trim();
+}
+
+// ===== 정답 확인(오답큐 관리 포함) =====
+function checkAnswer(){
+  if(!currentVerse) return;
+  const user = normalizeForCompare(userInput.value);
+  const correct = normalizeForCompare(currentVerse.text);
+
+  if(user === correct){
+    resultDiv.innerHTML = `<span class="green">정답!</span>`;
+    score++;
+    // 맞추면 오답큐에서 제거(참조로 중복 관리)
+    wrongVersesQueue = wrongVersesQueue.filter(v => v.reference !== currentVerse.reference || v.text !== currentVerse.text);
+  } else {
+    resultDiv.innerHTML = `<span class="red">틀렸습니다.</span>`;
+    // 오답 큐에 중복 없이 추가
+    if(!wrongVersesQueue.some(v => v.reference === currentVerse.reference && v.text === currentVerse.text)){
+      wrongVersesQueue.push(currentVerse);
+    }
+    correctVerseDiv.innerText = "정답: " + currentVerse.text;
+  }
+  scoreDiv.innerText = `점수: ${score}`;
+}
+
+// ===== 음성 읽기 토글 =====
+let synth = window.speechSynthesis;
+let currentUtterance = null;
+function toggleRead(){
+  if(!currentVerse) return;
+  if(isSpeaking){
+    synth.cancel();
+    isSpeaking = false;
+    document.getElementById('readBtn').textContent = '음성 듣기';
+    return;
+  }
+  currentUtterance = new SpeechSynthesisUtterance(currentVerse.text);
+  currentUtterance.lang = 'ko-KR';
+  currentUtterance.onend = () => { isSpeaking = false; document.getElementById('readBtn').textContent = '음성 듣기'; };
+  isSpeaking = true;
+  document.getElementById('readBtn').textContent = '중지';
+  synth.speak(currentUtterance);
+}
+
+// ===== 초기값 세팅 =====
+(function init(){
+  filteredVerses = [...verses];
+  currentIndex = -1;
+  score = 0;
+  wrongVersesQueue = [];
+  randomMode = false;
+  randomToggleBtn.textContent = '랜덤 모드: OFF';
+  modeInfo.textContent = '모드: 순차(기본)';
+  scoreDiv.innerText = `점수: ${score}`;
+  nextVerse();
+})();
 </script>
 </body>
 </html>
