@@ -1,47 +1,32 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta charset="UTF-8">
 <title>성경 암송 연습</title>
 <style>
-  body { font-family: Arial, sans-serif; max-width: 600px; margin: 30px auto; padding: 0 10px; }
-  #verse { font-size: 1.2em; margin-bottom: 15px; }
-  #result span { font-weight: bold; }
-  #result span.green { color: green; }
-  #result span.red { color: red; }
-  #correctVerse { margin-top: 10px; font-weight: bold; background: #f0f0f0; padding: 10px; border-radius: 5px; }
-  button { margin-right: 10px; margin-top: 10px; padding: 8px 15px; }
-  #score { margin-top: 10px; font-size: 1.1em; }
-  #userInput { width: 100%; height: 60px; font-size: 1em; padding: 5px; }
-  .length-filter button { margin-bottom: 15px; }
+  body { font-family: Arial, sans-serif; margin: 30px; line-height: 1.6; }
+  textarea { width: 100%; height: 100px; font-size: 16px; }
+  button { margin: 5px; padding: 10px 20px; font-size: 16px; border-radius: 8px; }
+  .green { color: green; font-weight: bold; }
+  .red { color: red; font-weight: bold; }
+  #verse, #result, #correctVerse, #score { margin-top: 15px; }
 </style>
 </head>
 <body>
 
-<h1>성경 암송 연습</h1>
-
-<div class="length-filter">
-  <button onclick="setVerseLength('all')">전체 구절</button>
-  <button onclick="setVerseLength('short')">짧은 구절 (60자 이하)</button>
-  <button onclick="setVerseLength('long')">긴 구절 (60자 이상)</button>
-  <button onclick="toggleRandomMode()">랜덤 모드 토글</button>
-</div>
+<h2>📖 성경 암송 연습 프로그램</h2>
 
 <div id="verse"></div>
-
-<textarea id="userInput" placeholder="여기에 암송한 구절을 입력하세요"></textarea>
-
-<div>
-  <button onclick="checkAnswer()">정답 확인</button>
-  <button onclick="nextVerse()">다음 구절</button>
-  <button onclick="repeatVerse()">같은 구절 반복</button>
-  <button onclick="readVerse()">음성 읽기</button>
-</div>
+<textarea id="userInput" placeholder="암송 내용을 입력하세요..."></textarea><br>
+<button onclick="checkAnswer()">정답 확인</button>
+<button onclick="nextVerse()">다음 문제</button>
+<button onclick="readVerse()">음성 듣기</button>
+<button onclick="toggleMode()">순차/랜덤 전환</button>
+<button onclick="repeatVerse()">같은 구절 반복</button>
 
 <div id="result"></div>
 <div id="correctVerse"></div>
-<div id="score"></div>
+<div id="score">점수: 0</div>
   
 <script>
 const verses = [
@@ -97,49 +82,26 @@ const verses = [
   {"text":"주 하나님이 이르시되 나는 알파와 오메가라 이제도 있고 전에도 있었고 장차 올 자요 전능한 자라 하시더라","reference":"요한계시록 1장 8절"}
 ];
 
-// ======== 상태 ========
+let currentIndex = 0;
 let currentVerse = null;
-let score = 0;
-let wrongVersesQueue = [];
-let filteredVerses = [...verses];
-let isSpeaking = false;
 let randomMode = false;
+let wrongVersesQueue = [];
+let score = 0;
+let isSpeaking = false;
 
-const verseDiv = document.getElementById("verse");
-const userInput = document.getElementById("userInput");
-const resultDiv = document.getElementById("result");
-const correctVerseDiv = document.getElementById("correctVerse");
-const scoreDiv = document.getElementById("score");
-
-// ======== 구절 길이 필터 ========
-function setVerseLength(length) {
-  if(length==="short") filteredVerses = verses.filter(v=>v.text.length<=60);
-  else if(length==="long") filteredVerses = verses.filter(v=>v.text.length>60);
-  else filteredVerses = [...verses];
-  nextVerse();
-}
-
-// ======== 랜덤 모드 토글 ========
-function toggleRandomMode() {
-  randomMode = !randomMode;
-  alert("랜덤 모드 " + (randomMode ? "ON" : "OFF"));
-  nextVerse();
-}
-
-// ======== 다음 구절 ========
+// ======== 다음 문제 ========
 function nextVerse(){
-  userInput.value="";
-  resultDiv.innerHTML="";
-  correctVerseDiv.innerHTML="";
-  if(wrongVersesQueue.length>0) currentVerse = wrongVersesQueue.shift();
-  else {
-    if(randomMode) currentVerse = filteredVerses[Math.floor(Math.random()*filteredVerses.length)];
-    else {
-      const currentIndex = currentVerse ? filteredVerses.indexOf(currentVerse) : -1;
-      currentVerse = filteredVerses[(currentIndex+1)%filteredVerses.length];
-    }
+  const filtered = wrongVersesQueue.length > 0 ? wrongVersesQueue : verses;
+  if(randomMode){
+    currentVerse = filtered[Math.floor(Math.random() * filtered.length)];
+  } else {
+    currentVerse = filtered[currentIndex % filtered.length];
+    currentIndex++;
   }
   verseDiv.innerText = showPartialVerse(currentVerse.text) + "\n(" + currentVerse.reference + ")";
+  userInput.value = "";
+  resultDiv.innerHTML = "";
+  correctVerseDiv.innerHTML = "";
 }
 
 // ======== 반복 연습 기능 ========
@@ -150,20 +112,24 @@ function repeatVerse(){
   verseDiv.innerText = showPartialVerse(currentVerse.text) + "\n(" + currentVerse.reference + ")";
 }
 
-// ======== 구절 일부만 보여주기 ========
+// ======== 예시 (첫 단어 + 마지막 단어, 중간은 단어 수만큼 … ) ========
 function showPartialVerse(text){
   const words = text.trim().split(/\s+/);
   if(words.length <= 2) return text;
-  const middle = words.slice(1, -1).map(w => "…").join(" ");
+  const middle = words.slice(1, -1).map(() => "…").join(" ");
   return `${words[0]} ${middle} ${words[words.length-1]}`;
 }
 
 // ======== 정답 체크 ========
 function checkAnswer(){
-  const input = userInput.value.replace(/\s+/g,"");
-  const answer = currentVerse.text.replace(/\s+/g,"");
+  // 쉼표, 세미콜론, 공백 모두 무시
+  const normalize = str => str.replace(/[\s,;]+/g, "");
+  
+  const input = normalize(userInput.value);
+  const answer = normalize(currentVerse.text);
+  
   let html="";
-  if(input===answer){
+  if(input === answer){
     html="<span class='green'>정답!</span>";
     score++;
   } else {
@@ -182,16 +148,27 @@ function readVerse(){
     isSpeaking=false;
     return;
   }
-  const utterance = new SpeechSynthesisUtterance(currentVerse.text);
-  utterance.lang="ko-KR";
-  utterance.onend = ()=>{ isSpeaking=false; };
+  const utter = new SpeechSynthesisUtterance(currentVerse.text);
+  utter.lang="ko-KR";
+  utter.onend = ()=>{ isSpeaking=false; };
   isSpeaking=true;
-  speechSynthesis.speak(utterance);
+  speechSynthesis.speak(utter);
+}
+
+// ======== 모드 전환 (순차/랜덤) ========
+function toggleMode(){
+  randomMode = !randomMode;
+  alert(randomMode ? "랜덤 모드로 전환되었습니다." : "순차 모드로 전환되었습니다.");
 }
 
 // ======== 초기화 ========
+const verseDiv=document.getElementById("verse");
+const userInput=document.getElementById("userInput");
+const resultDiv=document.getElementById("result");
+const correctVerseDiv=document.getElementById("correctVerse");
+const scoreDiv=document.getElementById("score");
+
 nextVerse();
 </script>
-
 </body>
 </html>
