@@ -60,12 +60,8 @@ textarea { width:100%; min-height:80px; padding:10px; font-size:14px; border-rad
   <h3>성경 구절 리스트</h3>
   <div id="verseList"></div>
 </div>
-  
-<div class="sidebar">
-  <h3>성경 구절 리스트</h3>
-  <div id="verseList"></div>
-</div>
 
+  
 <script>
 // ================= 데이터 (원본 그대로) =================
 const verses = [
@@ -120,119 +116,121 @@ const verses = [
   {"text":"우리가 보고 들은 바를 너희에게도 전함은 너희로 우리와 사귐이 있게 하려 함이니 우리의 사귐은 아버지와 그의 아들 예수 그리스도와 더불어 누림이라","reference":"요한일서 1장 3절"},
   {"text":"주 하나님이 이르시되 나는 알파와 오메가라 이제도 있고 전에도 있었고 장차 올 자요 전능한 자라 하시더라","reference":"요한계시록 1장 8절"}
 ];
-// ================= 초기 설정 =================
+
+// ================= 기본 세팅 =================
 let currentVerseIndex = 0;
-let mode = 'sequential'; // sequential, random
+let verseLengthMode = 'all';
 let randomMode = false;
-let wrongQueue = [];
-let filteredVerses = verses.slice();
+let wrongMode = false;
 let score = 0;
 
-// ================= 함수 =================
-function setVerseLength(length) {
-  if(length==='all') filteredVerses = verses.slice();
-  else if(length==='short') filteredVerses = verses.filter(v=>v.text.length <=60);
-  else filteredVerses = verses.filter(v=>v.text.length >60);
-  currentVerseIndex=0;
-  nextVerse();
+// ================= 랜덤/길이 선택 =================
+function setVerseLength(mode){
+    verseLengthMode = mode;
+    nextVerse();
 }
 
-function toggleRandomMode() {
-  randomMode = !randomMode;
-  mode = randomMode?'random':'sequential';
-  document.getElementById('randomToggle').innerText = '랜덤 모드: '+(randomMode?'ON':'OFF');
-  document.getElementById('modeInfo').innerText='모드: '+(randomMode?'랜덤':'순차(기본)');
+function toggleRandomMode(){
+    randomMode = !randomMode;
+    document.getElementById('randomToggle').innerText = `랜덤 모드: ${randomMode ? 'ON':'OFF'}`;
 }
 
-function toggleWrongMode() {
-  if(mode!=='wrong') { mode='wrong'; document.getElementById('modeInfo').innerText='모드: 오답/넘김 연습'; }
-  else { mode='sequential'; document.getElementById('modeInfo').innerText='모드: 순차(기본)'; }
-  nextVerse();
+function toggleWrongMode(){
+    wrongMode = !wrongMode;
+    document.getElementById('modeInfo').innerText = `모드: ${wrongMode ? '오답/넘김 연습':'순차(기본)'}`;
 }
 
-function normalizeText(t) {
-  return t.replace(/[.,;!?]/g,'').replace(/\s+/g,' ').trim();
+// ================= 구절 마스킹 =================
+function getMaskedVerse(text){
+    const words = text.split(' ');
+    if(words.length <=4) return text;
+    const firstTwo = words.slice(0,2).join(' ');
+    const lastTwo = words.slice(-2).join(' ');
+    const middle = words.slice(2,-2).map(w=>'_'.repeat(w.length)).join(' ');
+    return firstTwo + ' ' + middle + ' ' + lastTwo;
 }
 
-function checkAnswer() {
-  const userText = normalizeText(document.getElementById('userInput').value);
-  const original = normalizeText(filteredVerses[currentVerseIndex].text);
-  const userWords = userText.split(' ');
-  const originalWords = original.split(' ');
-
-  let resultHTML='';
-  let correctCount=0;
-
-  for(let i=0;i<originalWords.length;i++){
-    const ow=originalWords[i];
-    const uw=userWords[i]||'';
-    if(ow===uw) resultHTML+='<span class="green">'+ow+'</span> ';
-    else resultHTML+='<span class="underline-red">'+ow+'</span> ';
-  }
-
-  document.getElementById('result').innerHTML=resultHTML;
-  document.getElementById('correctVerse').innerText = filteredVerses[currentVerseIndex].reference;
-  if(mode==='wrong' && userText!==original) wrongQueue.push(filteredVerses[currentVerseIndex]);
-
-  if(userText===original) score++;
-  document.getElementById('score').innerText='점수: '+score;
+// ================= 구절 로드 =================
+function getFilteredVerses(){
+    return verses.filter(v=>{
+        if(verseLengthMode==='short') return v.text.length <= 60;
+        if(verseLengthMode==='long') return v.text.length > 60;
+        return true;
+    });
 }
 
-function nextVerse() {
-  document.getElementById('userInput').value='';
-  document.getElementById('result').innerHTML='';
-  document.getElementById('correctVerse').innerText='';
-
-  if(mode==='wrong' && wrongQueue.length>0) {
-    currentVerseIndex = verses.indexOf(wrongQueue.shift());
-  } else if(randomMode) {
-    currentVerseIndex = Math.floor(Math.random()*filteredVerses.length);
-  } else {
-    currentVerseIndex = (currentVerseIndex+1)%filteredVerses.length;
-  }
-
-  document.getElementById('verse').innerText = filteredVerses[currentVerseIndex].text;
+function nextVerse(){
+    const filtered = getFilteredVerses();
+    if(filtered.length===0) return;
+    if(randomMode){
+        currentVerseIndex = Math.floor(Math.random()*filtered.length);
+    } else {
+        currentVerseIndex = (currentVerseIndex +1) % filtered.length;
+    }
+    showVerse(filtered[currentVerseIndex]);
 }
 
 function repeatVerse(){
-  document.getElementById('userInput').value='';
-  document.getElementById('result').innerHTML='';
-  document.getElementById('correctVerse').innerText='';
+    const filtered = getFilteredVerses();
+    showVerse(filtered[currentVerseIndex]);
 }
 
 function skipVerse(){
-  nextVerse();
+    nextVerse();
 }
 
-// ================= 음성 기능 =================
+// ================= 구절 표시 =================
+function showVerse(verseObj){
+    document.getElementById('verse').innerText = `${getMaskedVerse(verseObj.text)} (${verseObj.reference})`;
+    document.getElementById('userInput').value = '';
+    document.getElementById('result').innerHTML = '';
+    document.getElementById('correctVerse').innerText = '';
+}
+
+// ================= 정답 체크 =================
+function checkAnswer(){
+    const userText = document.getElementById('userInput').value.replace(/\s+/g,'').replace(/[,;.!?]/g,'');
+    const correctText = verses[currentVerseIndex].text.replace(/\s+/g,'').replace(/[,;.!?]/g,'');
+    const resultContainer = document.getElementById('result');
+    const correctContainer = document.getElementById('correctVerse');
+
+    let displayHTML = '';
+    let correctHTML = '';
+    for(let i=0;i<correctText.length;i++){
+        if(userText[i] === correctText[i]){
+            displayHTML += `<span class="green">${correctText[i]}</span>`;
+        } else {
+            displayHTML += `<span class="underline-red">${correctText[i]}</span>`;
+        }
+    }
+    resultContainer.innerHTML = displayHTML;
+    correctContainer.innerText = `${verses[currentVerseIndex].text} (${verses[currentVerseIndex].reference})`;
+}
+
+// ================= 음성 =================
 let synth=null;
-let speaking=false;
-function toggleRead() {
-  if(!synth) synth=window.speechSynthesis;
-  if(speaking){ synth.cancel(); speaking=false; document.getElementById('readBtn').innerText='음성 듣기'; }
-  else{
-    const utter=new SpeechSynthesisUtterance(filteredVerses[currentVerseIndex].text);
-    utter.lang='ko-KR';
-    utter.onend=()=>{speaking=false; document.getElementById('readBtn').innerText='음성 듣기';}
-    synth.speak(utter); speaking=true; document.getElementById('readBtn').innerText='중지';
-  }
+function toggleRead(){
+    if(!synth) synth = window.speechSynthesis;
+    synth.cancel();
+    const utter = new SpeechSynthesisUtterance(verses[currentVerseIndex].text);
+    synth.speak(utter);
 }
 
 // ================= 사이드바 =================
-function renderVerseList() {
-  const listDiv=document.getElementById('verseList');
-  listDiv.innerHTML='';
-  filteredVerses.forEach((v,i)=>{
-    const btn=document.createElement('button');
-    btn.innerText=v.reference;
-    btn.onclick=()=>{currentVerseIndex=i; nextVerse();}
-    listDiv.appendChild(btn);
-  });
+function renderVerseList(){
+    const list = document.getElementById('verseList');
+    list.innerHTML = '';
+    verses.forEach((v,i)=>{
+        const btn = document.createElement('button');
+        btn.innerText = `${v.reference}`;
+        btn.onclick = ()=>{currentVerseIndex=i; showVerse(v);}
+        list.appendChild(btn);
+    });
 }
 
-// ================= 초기 실행 =================
+// ================= 초기 로드 =================
 renderVerseList();
-setVerseLength('all');
+nextVerse();
 </script>
 </body>
 </html>
